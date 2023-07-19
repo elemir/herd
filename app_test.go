@@ -7,30 +7,30 @@ import (
 )
 
 func TestQuery(t *testing.T) {
-	game := NewGame()
+	app := NewApp()
 
 	var input, output []int
 
 	input = []int{10, 23, 45, 12}
 
-	err := game.AddStartupSystems(func(manager Manager) {
+	err := app.AddStartupSystems(func(manager Manager) {
 		for _, in := range input {
 			manager.Spawn(in)
 		}
 	})
 	require.NoError(t, err)
 
-	err = game.AddSystems(func(query Query[int]) {
+	err = app.AddSystems(func(query Query[int]) {
 		query.ForEach(func(_ EntityID, val *int) {
 			output = append(output, *val)
 		})
 	})
 	require.NoError(t, err)
 
-	game.Update()
+	app.Update()
 	require.Nil(t, output)
 
-	game.Update()
+	app.Update()
 	require.ElementsMatch(t, input, output)
 }
 
@@ -40,7 +40,7 @@ type testPair struct {
 }
 
 func TestQuery2(t *testing.T) {
-	game := NewGame()
+	app := NewApp()
 
 	var input, output []testPair
 
@@ -50,14 +50,14 @@ func TestQuery2(t *testing.T) {
 		{30, "three"},
 	}
 
-	err := game.AddStartupSystems(func(manager Manager) {
+	err := app.AddStartupSystems(func(manager Manager) {
 		for _, in := range input {
 			manager.Spawn(in.num, in.str)
 		}
 	})
 	require.NoError(t, err)
 
-	err = game.AddSystems(func(query Query2[int, string]) {
+	err = app.AddSystems(func(query Query2[int, string]) {
 		query.ForEach(func(_ EntityID, num *int, str *string) {
 			output = append(output, testPair{
 				num: *num, str: *str,
@@ -66,30 +66,30 @@ func TestQuery2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	game.Update()
+	app.Update()
 	require.Nil(t, output)
 
-	game.Update()
+	app.Update()
 	require.ElementsMatch(t, input, output)
 }
 
 func TestRes(t *testing.T) {
-	game := NewGame()
+	app := NewApp()
 
 	var input, output int
 
 	input = 10
 
-	err := game.AddStartupSystems(func(res Res[int]) {
+	err := app.AddStartupSystems(func(res Res[int]) {
 		*res = input
 	})
 	require.NoError(t, err)
 
-	err = game.AddSystems(func(res Res[int]) {
+	err = app.AddSystems(func(res Res[int]) {
 		output = *res
 	})
 	require.NoError(t, err)
 
-	game.Update()
+	app.Update()
 	require.Equal(t, input, output)
 }

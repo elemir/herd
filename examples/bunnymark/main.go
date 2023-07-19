@@ -49,24 +49,24 @@ func main() {
 	ebiten.SetWindowResizable(true)
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	game := herd.NewGame()
+	app := herd.NewApp()
 
-	if err := game.AddStartupSystems(Settings); err != nil {
+	if err := app.AddStartupSystems(Settings); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := game.AddSystems(
+	if err := app.AddSystems(
 		system.Velocity, system.Gravity, system.Bounce,
 		system.CalculateMetrics, system.Spawn,
 	); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := game.AddRenderers(system.Background, system.Render, system.DrawMetrics); err != nil {
+	if err := app.AddRenderers(system.Background, system.Render, system.DrawMetrics); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := ebiten.RunGame(game); err != nil {
+	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal(err)
 	}
 }

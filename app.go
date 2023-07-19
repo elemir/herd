@@ -14,7 +14,7 @@ import (
 
 type EntityID int
 
-type Game struct {
+type App struct {
 	alreadyUpdated bool
 	lastEntity     EntityID
 
@@ -30,53 +30,53 @@ type Game struct {
 	resources map[reflect.Type]reflect.Value
 }
 
-func NewGame() *Game {
-	game := &Game{
+func NewApp() *App {
+	app := &App{
 		manager:   NewManager(),
 		storage:   internal.NewStorage[EntityID](),
 		resources: make(map[reflect.Type]reflect.Value),
 		info:      &SystemInfo{},
 	}
 
-	game.resources[systemInfoType] = reflect.ValueOf(game.info)
+	app.resources[systemInfoType] = reflect.ValueOf(app.info)
 
-	return game
+	return app
 }
 
-func (g *Game) AddStartupSystems(systems ...any) error {
+func (app *App) AddStartupSystems(systems ...any) error {
 	for _, system := range systems {
-		f, err := g.wrapSystem(system)
+		f, err := app.wrapSystem(system)
 		if err != nil {
 			return fmt.Errorf("unable to add startup system %v: %w", getFuncName(system), err)
 		}
 
-		g.startupSystems = append(g.startupSystems, f)
+		app.startupSystems = append(app.startupSystems, f)
 	}
 
 	return nil
 }
 
-func (g *Game) AddSystems(systems ...any) error {
+func (app *App) AddSystems(systems ...any) error {
 	for _, system := range systems {
-		f, err := g.wrapSystem(system)
+		f, err := app.wrapSystem(system)
 		if err != nil {
 			return fmt.Errorf("unable to add system %v: %w", getFuncName(system), err)
 		}
 
-		g.systems = append(g.systems, f)
+		app.systems = append(app.systems, f)
 	}
 
 	return nil
 }
 
-func (g *Game) AddRenderers(renderers ...any) error {
+func (app *App) AddRenderers(renderers ...any) error {
 	for _, renderer := range renderers {
-		f, err := g.wrapRenderer(renderer)
+		f, err := app.wrapRenderer(renderer)
 		if err != nil {
 			return fmt.Errorf("unable to add renderer %v: %w", getFuncName(renderer), err)
 		}
 
-		g.renderers = append(g.renderers, f)
+		app.renderers = append(app.renderers, f)
 	}
 
 	return nil
@@ -88,44 +88,44 @@ func getFuncName(fnc interface{}) string {
 	return strs[len(strs)-1]
 }
 
-func (g *Game) Update() error {
-	if !g.alreadyUpdated {
-		for _, system := range g.startupSystems {
+func (app *App) Update() error {
+	if !app.alreadyUpdated {
+		for _, system := range app.startupSystems {
 			system()
 		}
-		g.alreadyUpdated = true
+		app.alreadyUpdated = true
 	}
 
-	for _, system := range g.systems {
+	for _, system := range app.systems {
 		system()
 	}
 
-	for _, spawn := range *g.manager.spawnQueue {
-		id := g.newEntity()
+	for _, spawn := range *app.manager.spawnQueue {
+		id := app.newEntity()
 		for _, comp := range spawn {
-			g.storage.Add(id, comp)
+			app.storage.Add(id, comp)
 		}
 	}
-	g.manager.clear()
+	app.manager.clear()
 
-	g.info.Entities = g.storage.Count()
+	app.info.Entities = app.storage.Count()
 
 	return nil
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
-	for _, renderer := range g.renderers {
+func (app *App) Draw(screen *ebiten.Image) {
+	for _, renderer := range app.renderers {
 		renderer(screen)
 	}
 }
 
-func (g *Game) Layout(w, h int) (int, int) {
-	g.info.Bounds = image.Rect(0, 0, w, h)
+func (app *App) Layout(w, h int) (int, int) {
+	app.info.Bounds = image.Rect(0, 0, w, h)
 
 	return w, h
 }
 
-func (g *Game) wrapSystem(system any) (func(), error) {
+func (app *App) wrapSystem(system any) (func(), error) {
 	val := reflect.ValueOf(system)
 	typ := val.Type()
 
@@ -137,7 +137,7 @@ func (g *Game) wrapSystem(system any) (func(), error) {
 		return nil, fmt.Errorf("system should not return any value, got %d out parameters", typ.NumOut())
 	}
 
-	pkg := reflect.TypeOf(Game{}).PkgPath()
+	pkg := reflect.TypeOf(App{}).PkgPath()
 
 	args := make([]reflect.Value, typ.NumIn())
 
@@ -152,13 +152,13 @@ func (g *Game) wrapSystem(system any) (func(), error) {
 
 		switch {
 		case strings.HasPrefix(name, "Query["):
-			args[i] = g.createQuery(argType)
+			args[i] = app.createQuery(argType)
 		case strings.HasPrefix(name, "Query2["), strings.HasPrefix(name, "Query3["):
-			args[i] = g.createMultiQuery(argType)
+			args[i] = app.createMultiQuery(argType)
 		case strings.HasPrefix(name, "Res["):
-			args[i] = g.createRes(argType)
+			args[i] = app.createRes(argType)
 		case name == "Manager":
-			args[i] = reflect.ValueOf(g.manager)
+			args[i] = reflect.ValueOf(app.manager)
 		default:
 			return nil, fmt.Errorf("system should takes one of Manager, Query[T] or Res[T] argument types, got %s", name)
 		}
@@ -170,7 +170,7 @@ func (g *Game) wrapSystem(system any) (func(), error) {
 
 }
 
-func (g *Game) wrapRenderer(renderer any) (func(*ebiten.Image), error) {
+func (app *App) wrapRenderer(renderer any) (func(*ebiten.Image), error) {
 	val := reflect.ValueOf(renderer)
 	typ := val.Type()
 
@@ -182,7 +182,7 @@ func (g *Game) wrapRenderer(renderer any) (func(*ebiten.Image), error) {
 		return nil, fmt.Errorf("system should not return any value, got %d out parameters", typ.NumOut())
 	}
 
-	pkg := reflect.TypeOf(Game{}).PkgPath()
+	pkg := reflect.TypeOf(App{}).PkgPath()
 
 	args := make([]reflect.Value, typ.NumIn())
 
@@ -205,13 +205,13 @@ func (g *Game) wrapRenderer(renderer any) (func(*ebiten.Image), error) {
 
 		switch {
 		case strings.HasPrefix(name, "Query["):
-			args[i] = g.createQuery(argType)
+			args[i] = app.createQuery(argType)
 		case strings.HasPrefix(name, "Query2["), strings.HasPrefix(name, "Query3["):
-			args[i] = g.createMultiQuery(argType)
+			args[i] = app.createMultiQuery(argType)
 		case strings.HasPrefix(name, "Res["):
-			args[i] = g.createRes(argType)
+			args[i] = app.createRes(argType)
 		case name == "Manager":
-			args[i] = reflect.ValueOf(g.manager)
+			args[i] = reflect.ValueOf(app.manager)
 		default:
 			return nil, fmt.Errorf("system should take one of Manager, Query[T] or Res[T] argument types, got %s", name)
 		}
@@ -229,35 +229,35 @@ func (g *Game) wrapRenderer(renderer any) (func(*ebiten.Image), error) {
 
 }
 
-func (g *Game) createRes(typ reflect.Type) reflect.Value {
+func (app *App) createRes(typ reflect.Type) reflect.Value {
 	typeParam := typ.Elem()
 
-	if _, ok := g.resources[typeParam]; !ok {
-		g.resources[typeParam] = reflect.New(typeParam)
+	if _, ok := app.resources[typeParam]; !ok {
+		app.resources[typeParam] = reflect.New(typeParam)
 	}
 
-	return g.resources[typeParam]
+	return app.resources[typeParam]
 }
 
-func (g *Game) createMultiQuery(typ reflect.Type) reflect.Value {
+func (app *App) createMultiQuery(typ reflect.Type) reflect.Value {
 	val := reflect.New(typ).Elem()
 
 	for i := 0; i < val.NumField(); i++ {
 		queryField := val.Field(i)
 
-		queryField.Set(g.createQuery(queryField.Type()))
+		queryField.Set(app.createQuery(queryField.Type()))
 
 	}
 
 	return val
 }
 
-func (g *Game) createQuery(typ reflect.Type) reflect.Value {
+func (app *App) createQuery(typ reflect.Type) reflect.Value {
 	val := reflect.New(typ).Elem()
 	typeParam := extractQueueTypeParameter(typ)
 
-	val.Field(0).Set(reflect.ValueOf(g.storage.Indice(typeParam)))
-	val.Field(1).Set(g.storage.Storage(typeParam))
+	val.Field(0).Set(reflect.ValueOf(app.storage.Indice(typeParam)))
+	val.Field(1).Set(app.storage.Storage(typeParam))
 
 	return val
 }
@@ -266,8 +266,8 @@ func extractQueueTypeParameter(queryTyp reflect.Type) reflect.Type {
 	return queryTyp.Field(1).Type.Elem().Elem()
 }
 
-func (g *Game) newEntity() EntityID {
-	g.lastEntity++
+func (app *App) newEntity() EntityID {
+	app.lastEntity++
 
-	return g.lastEntity
+	return app.lastEntity
 }

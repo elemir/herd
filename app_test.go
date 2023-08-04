@@ -6,90 +6,109 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type Bundle struct {
+	X int
+	Y string
+}
+
+type SimpleX struct {
+	X int
+}
+
 func TestQuery(t *testing.T) {
 	app := NewApp()
 
-	var input, output []int
-
-	input = []int{10, 23, 45, 12}
-
-	err := app.AddStartupSystems(func(manager Manager) {
-		for _, in := range input {
-			manager.Spawn(in)
-		}
-	})
-	require.NoError(t, err)
-
-	err = app.AddSystems(func(query Query[int]) {
-		query.ForEach(func(_ EntityID, val *int) {
-			output = append(output, *val)
-		})
-	})
-	require.NoError(t, err)
-
-	app.Update()
-	require.Nil(t, output)
-
-	app.Update()
-	require.ElementsMatch(t, input, output)
-}
-
-type testPair struct {
-	num int
-	str string
-}
-
-func TestQuery2(t *testing.T) {
-	app := NewApp()
-
-	var input, output []testPair
-
-	input = []testPair{
-		{10, "one"},
-		{1, "two"},
-		{30, "three"},
+	expected := []Bundle{{10, "10"}, {23, "23"}, {45, "45"}}
+	for _, in := range expected {
+		app.Manager.Spawn(in)
 	}
+	app.Manager.Spawn(SimpleX{42})
 
-	err := app.AddStartupSystems(func(manager Manager) {
-		for _, in := range input {
-			manager.Spawn(in.num, in.str)
-		}
-	})
+	query, err := NewQuery[Bundle](app)
 	require.NoError(t, err)
 
-	err = app.AddSystems(func(query Query2[int, string]) {
-		query.ForEach(func(_ EntityID, num *int, str *string) {
-			output = append(output, testPair{
-				num: *num, str: *str,
-			})
+	var output []Bundle
+	err = app.AddSystems(func() error {
+		query.ForEach(func(b *Bundle) {
+			output = append(output, *b)
 		})
+
+		return nil
 	})
 	require.NoError(t, err)
 
-	app.Update()
+	err = app.Update()
+	require.NoError(t, err)
 	require.Nil(t, output)
 
-	app.Update()
-	require.ElementsMatch(t, input, output)
+	err = app.Update()
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, output)
 }
 
-func TestRes(t *testing.T) {
+func TestOneComponent(t *testing.T) {
 	app := NewApp()
 
-	var input, output int
+	expected := []SimpleX{{10}, {23}, {45}, {42}}
+	for _, in := range []Bundle{{10, "10"}, {23, "23"}, {45, "45"}} {
+		app.Manager.Spawn(in)
+	}
+	app.Manager.Spawn(SimpleX{42})
 
-	input = 10
+	query, err := NewQuery[SimpleX](app)
+	require.NoError(t, err)
 
-	err := app.AddStartupSystems(func(res Res[int]) {
-		*res = input
+	var output []SimpleX
+
+	err = app.AddSystems(func() error {
+		query.ForEach(func(x *SimpleX) {
+			output = append(output, *x)
+		})
+
+		return nil
 	})
 	require.NoError(t, err)
 
-	err = app.AddSystems(func(res Res[int]) {
-		output = *res
+	err = app.Update()
+	require.NoError(t, err)
+	require.Nil(t, output)
+
+	err = app.Update()
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, output)
+}
+
+func TestAnonymouseInline(t *testing.T) {
+	app := NewApp()
+
+	input := []struct {
+		int
+		string
+	}{{10, "22"}}
+
+	for _, in := range input {
+		app.Manager.Spawn(in)
+	}
+	app.Manager.Spawn(struct{ int }{42})
+
+	query, err := NewQuery[struct{ int }](app)
+	require.NoError(t, err)
+
+	var output []struct{ int }
+	err = app.AddSystems(func() error {
+		query.ForEach(func(b *struct{ int }) {
+			output = append(output, *b)
+		})
+
+		return nil
 	})
 	require.NoError(t, err)
 
-	app.Update()
-	require.Equal(t, input, output)
+	err = app.Update()
+	require.NoError(t, err)
+	require.Nil(t, output)
+
+	err = app.Update()
+	require.NoError(t, err)
+	require.ElementsMatch(t, []struct{ int }{{42}, {10}}, output)
 }

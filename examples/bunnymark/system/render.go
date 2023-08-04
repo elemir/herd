@@ -7,14 +7,35 @@ import (
 	"github.com/elemir/herd/examples/bunnymark/component"
 )
 
-func Render(screen *ebiten.Image, query herd.Query3[component.Position, component.Hue, component.Sprite]) {
-	query.ForEach(func(_ herd.EntityID, pos *component.Position, hue *component.Hue, sprite *component.Sprite) {
+type Tile struct {
+	Pos    component.Position
+	Hue    component.Hue
+	Sprite component.Sprite
+}
+
+type Render struct {
+	Query herd.Query[Tile]
+}
+
+func NewRender(app *herd.App) (Render, error) {
+	query, err := herd.NewQuery[Tile](app)
+	if err != nil {
+		return Render{}, err
+	}
+
+	return Render{
+		Query: query,
+	}, nil
+}
+
+func (r Render) Draw(screen *ebiten.Image) {
+	r.Query.ForEach(func(tile *Tile) {
 		sw, sh := float64(screen.Bounds().Dx()), float64(screen.Bounds().Dy())
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(pos.X*sw, pos.Y*sh)
-		if *hue.Colorful {
-			op.ColorM.RotateHue(hue.Value)
+		op.GeoM.Translate(tile.Pos.X*sw, tile.Pos.Y*sh)
+		if *tile.Hue.Colorful {
+			op.ColorM.RotateHue(tile.Hue.Value)
 		}
-		screen.DrawImage(sprite.Image, op)
+		screen.DrawImage(tile.Sprite.Image, op)
 	})
 }

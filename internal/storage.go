@@ -1,55 +1,154 @@
 package internal
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+	"unsafe"
+)
+
+type FieldType struct {
+	Name string
+	Type reflect.Type
+}
 
 type Storage[ID comparable] struct {
-	indices map[reflect.Type](map[ID]int)
-	// TODO(@elemir90): make add component faster via self-written unsafe slice
-	storages map[reflect.Type]reflect.Value
+	arrays map[FieldType]*SparseArray[ID]
 
 	fullIndex map[ID]struct{}
 }
 
 func NewStorage[ID comparable]() Storage[ID] {
 	return Storage[ID]{
-		indices:   make(map[reflect.Type](map[ID]int)),
-		storages:  make(map[reflect.Type]reflect.Value),
+		arrays:    make(map[FieldType]*SparseArray[ID]),
 		fullIndex: make(map[ID]struct{}),
 	}
 }
 
-func (g *Storage[ID]) Indice(typ reflect.Type) map[ID]int {
-	if _, ok := g.indices[typ]; !ok {
-		g.indices[typ] = make(map[ID]int)
+func (s *Storage[ID]) Add(id ID, bundle any) error {
+	typ := reflect.TypeOf(bundle)
+
+	if typ.Kind() != reflect.Struct {
+		return fmt.Errorf("bundle type should be a struct, got %s", typ.Kind())
 	}
 
-	return g.indices[typ]
-}
+	for i := 0; i < typ.NumField(); i++ {
+		fieldType := typ.Field(i)
 
-func (g *Storage[ID]) Storage(typ reflect.Type) reflect.Value {
-	if _, ok := g.storages[typ]; !ok {
-		sliceType := reflect.SliceOf(typ)
-		g.storages[typ] = reflect.New(sliceType)
-		g.storages[typ].Elem().Set(reflect.MakeSlice(sliceType, 0, 32))
+		array := s.sparseArray(fieldType.Name, fieldType.Type)
+		fieldPtr := unsafe.Add(toPointer(bundle), fieldType.Offset)
+		array.Add(id, fieldPtr)
 	}
 
-	return g.storages[typ]
+	s.fullIndex[id] = struct{}{}
+
+	return nil
 }
 
-func (g *Storage[ID]) Add(id ID, content any) {
-	val := reflect.ValueOf(content)
-	typ := val.Type()
-
-	storage := g.Storage(typ)
-	pos := storage.Elem().Len()
-	storage.Elem().Set(reflect.Append(storage.Elem(), val))
-
-	indice := g.Indice(typ)
-	indice[id] = pos
-
-	g.fullIndex[id] = struct{}{}
+type iface struct {
+	Type, Data unsafe.Pointer
 }
 
-func (g *Storage[ID]) Count() int {
-	return len(g.fullIndex)
+func toPointer(val any) unsafe.Pointer {
+	return (*iface)(unsafe.Pointer(&val)).Data
+}
+
+func (s *Storage[ID]) sparseArray(name string, typ reflect.Type) *SparseArray[ID] {
+	field := FieldType{
+		Name: name,
+		Type: typ,
+	}
+
+	if s.arrays[field] == nil {
+		s.arrays[field] = NewSparseArray[ID]()
+	}
+
+	return s.arrays[field]
+}
+
+func (s *Storage[ID]) Count() int {
+	return len(s.fullIndex)
+}
+
+func (s *Storage[ID]) Iterator(typ reflect.Type) (Iterator[ID], error) {
+	if typ.Kind() != reflect.Struct {
+		return Iterator[ID]{}, fmt.Errorf("bundle type should be a struct, got %s", typ.Kind())
+	}
+
+	val := reflect.New(typ).Elem()
+
+	arrays := make([]*SparseArray[ID], val.NumField())
+	fields := make([]FieldValue, val.NumField())
+
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldType := typ.Field(i)
+
+		fields[i] = FieldValue{
+			pointer: unsafe.Add(val.Addr().UnsafePointer(), fieldType.Offset),
+			size:    fieldType.Type.Size(),
+		}
+
+		arrays[i] = s.sparseArray(typ.Field(i).Name, field.Type())
+	}
+
+	return Iterator[ID]{
+		elem:      val.Addr().UnsafePointer(),
+		fields:    fields,
+		arrays:    arrays,
+		fullIndex: s.fullIndex,
+	}, nil
+}
+
+type FieldValue struct {
+	pointer unsafe.Pointer
+	size    uintptr
+}
+
+type Iterator[ID comparable] struct {
+	elem unsafe.Pointer
+
+	arrays []*SparseArray[ID]
+	fields []FieldValue
+
+	fullIndex map[ID]struct{}
+}
+
+func (iter Iterator[ID]) ForEach(f func(ID, unsafe.Pointer)) {
+	if len(iter.arrays) == 0 {
+		for id := range iter.fullIndex {
+			f(id, iter.elem)
+		}
+		return
+	}
+
+	positions := make([]int, len(iter.arrays))
+
+EntityLoop:
+	for id, pos := range iter.arrays[0].index {
+		positions[0] = pos
+		for i, array := range iter.arrays {
+			pos, ok := array.index[id]
+			if !ok {
+				continue EntityLoop
+			}
+			positions[i] = pos
+		}
+
+		for i, pos := range positions {
+			copyPointer(iter.fields[i].pointer, iter.arrays[i].slice[pos], iter.fields[i].size)
+		}
+
+		f(id, iter.elem)
+
+		for i, pos := range positions {
+			copyPointer(iter.arrays[i].slice[pos], iter.fields[i].pointer, iter.fields[i].size)
+		}
+	}
+}
+
+func copyPointer(dst unsafe.Pointer, src unsafe.Pointer, size uintptr) {
+	srcSlice := unsafe.Slice((*byte)(src), size)
+	dstSlice := unsafe.Slice((*byte)(dst), size)
+
+	copy(dstSlice, srcSlice)
 }

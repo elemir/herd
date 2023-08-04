@@ -17,8 +17,12 @@ import (
 	"github.com/elemir/herd/examples/bunnymark/system"
 )
 
-func Settings(settings herd.Res[component.Settings]) {
-	*settings = component.Settings{
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+
+func CreateApp() (*herd.App, error) {
+	app := herd.NewApp()
+
+	settings := component.Settings{
 		Ticker:   time.NewTicker(500 * time.Millisecond),
 		Gpu:      helper.GpuInfo(),
 		Tps:      helper.NewPlot(20, 60),
@@ -26,11 +30,52 @@ func Settings(settings herd.Res[component.Settings]) {
 		Objects:  helper.NewPlot(20, 60000),
 		Sprite:   assets.Bunny,
 		Colorful: false,
-		Amount:   100,
+		Amount:   1000,
 	}
-}
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	velocity, err := system.NewVelocity(app)
+	if err != nil {
+		return nil, err
+	}
+
+	gravity, err := system.NewGravity(app)
+	if err != nil {
+		return nil, err
+	}
+
+	bounce, err := system.NewBounce(app)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics, err := system.NewMetrics(app, &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	spawn, err := system.NewSpawn(app, &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	render, err := system.NewRender(app)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := app.AddSystems(
+		velocity.Update, gravity.Update, bounce.Update,
+		bounce.Update, metrics.Update, spawn.Update,
+	); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := app.AddRenderers(system.Background, render.Draw, metrics.Draw); err != nil {
+		log.Fatal(err)
+	}
+
+	return app, nil
+}
 
 func main() {
 	flag.Parse()
@@ -49,20 +94,8 @@ func main() {
 	ebiten.SetWindowResizable(true)
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	app := herd.NewApp()
-
-	if err := app.AddStartupSystems(Settings); err != nil {
-		log.Fatal(err)
-	}
-
-	if err := app.AddSystems(
-		system.Velocity, system.Gravity, system.Bounce,
-		system.CalculateMetrics, system.Spawn,
-	); err != nil {
-		log.Fatal(err)
-	}
-
-	if err := app.AddRenderers(system.Background, system.Render, system.DrawMetrics); err != nil {
+	app, err := CreateApp()
+	if err != nil {
 		log.Fatal(err)
 	}
 

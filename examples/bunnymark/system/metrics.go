@@ -14,22 +14,36 @@ import (
 	"github.com/elemir/herd/examples/bunnymark/component"
 )
 
-func CalculateMetrics(settings herd.Res[component.Settings], system herd.Res[herd.SystemInfo]) {
-	select {
-	case <-settings.Ticker.C:
-		settings.Objects.Update(float64(system.Entities))
-		settings.Tps.Update(ebiten.CurrentTPS())
-		settings.Fps.Update(ebiten.CurrentFPS())
-	default:
-	}
+type Metrics struct {
+	Settings *component.Settings
+	System   *herd.SystemInfo
 }
 
-func DrawMetrics(screen *ebiten.Image, settings herd.Res[component.Settings], system herd.Res[herd.SystemInfo]) {
+func NewMetrics(app *herd.App, settings *component.Settings) (Metrics, error) {
+	return Metrics{
+		Settings: settings,
+		System:   app.SystemInfo,
+	}, nil
+}
+
+func (m Metrics) Update() error {
+	select {
+	case <-m.Settings.Ticker.C:
+		m.Settings.Objects.Update(float64(m.System.Entities))
+		m.Settings.Tps.Update(ebiten.CurrentTPS())
+		m.Settings.Fps.Update(ebiten.CurrentFPS())
+	default:
+	}
+
+	return nil
+}
+
+func (m Metrics) Draw(screen *ebiten.Image) {
 	str := fmt.Sprintf(
 		"GPU: %s\nTPS: %.2f, FPS: %.2f, Objects: %.f\nBatching: %t, Amount: %d\nResolution: %dx%d",
-		settings.Gpu, settings.Tps.Last(), settings.Fps.Last(), settings.Objects.Last(),
-		!settings.Colorful, settings.Amount,
-		system.Bounds.Dx(), system.Bounds.Dy(),
+		m.Settings.Gpu, m.Settings.Tps.Last(), m.Settings.Fps.Last(), m.Settings.Objects.Last(),
+		!m.Settings.Colorful, m.Settings.Amount,
+		m.System.Bounds.Dx(), m.System.Bounds.Dy(),
 	)
 
 	rect := text.BoundString(basicfont.Face7x13, str)
@@ -42,7 +56,7 @@ func DrawMetrics(screen *ebiten.Image, settings herd.Res[component.Settings], sy
 	ebitenutil.DrawRect(screen, 0, 0, rectW, rectH, color.RGBA{A: 128})
 	text.Draw(screen, str, basicfont.Face7x13, int(padding)/2, 10+int(padding)/2, colornames.White)
 
-	settings.Tps.Draw(screen, 0, padding+rectH, plotW, plotH)
-	settings.Fps.Draw(screen, 0, padding+rectH*2, plotW, plotH)
-	settings.Objects.Draw(screen, 0, padding+rectH*3, plotW, plotH)
+	m.Settings.Tps.Draw(screen, 0, padding+rectH, plotW, plotH)
+	m.Settings.Fps.Draw(screen, 0, padding+rectH*2, plotW, plotH)
+	m.Settings.Objects.Draw(screen, 0, padding+rectH*3, plotW, plotH)
 }

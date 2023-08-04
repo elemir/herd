@@ -1,48 +1,35 @@
 package herd
 
-// TODO(@elemir90): understand how use private fields here
+import (
+	"fmt"
+	"unsafe"
+
+	"github.com/elemir/herd/internal"
+)
+
 type Query[T any] struct {
-	Index   map[EntityID]int
-	Storage *[]T
+	iterator internal.Iterator[EntityID]
 }
 
-func (q Query[T]) ForEach(f func(id EntityID, t *T)) {
-	for id, i := range q.Index {
-		f(id, &(*q.Storage)[i])
+func NewQuery[T any](app *App) (Query[T], error) {
+	iterator, err := app.storage.Iterator(internal.TypeOf[T]())
+	if err != nil {
+		return Query[T]{}, fmt.Errorf("create iterator: %w", err)
 	}
+
+	return Query[T]{
+		iterator: iterator,
+	}, nil
 }
 
-type Query2[T, U any] struct {
-	QueryT Query[T]
-	QueryU Query[U]
+func (q Query[T]) ForEach(f func(t *T)) {
+	q.iterator.ForEach(func(_ EntityID, ptr unsafe.Pointer) {
+		f((*T)(ptr))
+	})
 }
 
-func (q Query2[T, U]) ForEach(f func(id EntityID, t *T, u *U)) {
-	for id, tidx := range q.QueryT.Index {
-		uidx, ok := q.QueryU.Index[id]
-		if !ok {
-			continue
-		}
-		f(id, &(*q.QueryT.Storage)[tidx], &(*q.QueryU.Storage)[uidx])
-	}
-}
-
-type Query3[T, U, V any] struct {
-	QueryT Query[T]
-	QueryU Query[U]
-	QueryV Query[V]
-}
-
-func (q Query3[T, U, V]) ForEach(f func(id EntityID, t *T, u *U, v *V)) {
-	for id, tidx := range q.QueryT.Index {
-		uidx, ok := q.QueryU.Index[id]
-		if !ok {
-			continue
-		}
-		vidx, ok := q.QueryV.Index[id]
-		if !ok {
-			continue
-		}
-		f(id, &(*q.QueryT.Storage)[tidx], &(*q.QueryU.Storage)[uidx], &(*q.QueryV.Storage)[vidx])
-	}
+func (q Query[T]) Iterate(f func(id EntityID, t *T)) {
+	q.iterator.ForEach(func(id EntityID, ptr unsafe.Pointer) {
+		f(id, (*T)(ptr))
+	})
 }

@@ -112,3 +112,25 @@ func TestAnonymouseInline(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, []struct{ int }{{42}, {10}}, output)
 }
+
+func TestFirst(t *testing.T) {
+	app := NewApp()
+
+	app.Manager.Spawn(SimpleX{42})
+
+	queryBundle, err := NewQuery[Bundle](app)
+	require.NoError(t, err)
+
+	queryX, err := NewQuery[SimpleX](app)
+	require.NoError(t, err)
+
+	err = app.Update()
+	require.NoError(t, err)
+
+	_, ok := queryBundle.First()
+	require.False(t, ok)
+
+	x, ok := queryX.First()
+	require.True(t, ok)
+	require.Equal(t, x.X, 42)
+}

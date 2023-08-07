@@ -113,10 +113,12 @@ type Iterator[ID comparable] struct {
 	fullIndex map[ID]struct{}
 }
 
-func (iter Iterator[ID]) ForEach(f func(ID, unsafe.Pointer)) {
+func (iter Iterator[ID]) ForEach(f func(ID, unsafe.Pointer) bool) {
 	if len(iter.arrays) == 0 {
 		for id := range iter.fullIndex {
-			f(id, iter.elem)
+			if cont := f(id, iter.elem); !cont {
+				break
+			}
 		}
 		return
 	}
@@ -138,7 +140,9 @@ EntityLoop:
 			copyPointer(iter.fields[i].pointer, iter.arrays[i].slice[pos], iter.fields[i].size)
 		}
 
-		f(id, iter.elem)
+		if cont := f(id, iter.elem); !cont {
+			break
+		}
 
 		for i, pos := range positions {
 			copyPointer(iter.arrays[i].slice[pos], iter.fields[i].pointer, iter.fields[i].size)

@@ -113,24 +113,43 @@ func TestAnonymouseInline(t *testing.T) {
 	require.ElementsMatch(t, []struct{ int }{{42}, {10}}, output)
 }
 
-func TestFirst(t *testing.T) {
+func TestStartups(t *testing.T) {
 	app := NewApp()
 
-	app.Manager.Spawn(SimpleX{42})
+	var firstStartupRunCount int
+	err := app.AddStartups(func() (bool, error) {
+		if firstStartupRunCount == 2 {
+			return true, nil
+		}
 
-	queryBundle, err := NewQuery[Bundle](app)
-	require.NoError(t, err)
+		firstStartupRunCount++
+		return false, nil
+	})
 
-	queryX, err := NewQuery[SimpleX](app)
+	var secondStartupRunCount int
+	err = app.AddStartups(func() (bool, error) {
+		secondStartupRunCount++
+		return true, nil
+	})
+
+	systemRun := false
+	err = app.AddSystems(func() error {
+		systemRun = true
+		return nil
+	})
 	require.NoError(t, err)
 
 	err = app.Update()
 	require.NoError(t, err)
+	require.False(t, systemRun)
 
-	_, ok := queryBundle.First()
-	require.False(t, ok)
+	err = app.Update()
+	require.NoError(t, err)
+	require.False(t, systemRun)
 
-	x, ok := queryX.First()
-	require.True(t, ok)
-	require.Equal(t, x.X, 42)
+	err = app.Update()
+	require.NoError(t, err)
+	require.True(t, systemRun)
+	require.Equal(t, 2, firstStartupRunCount)
+	require.Equal(t, 1, secondStartupRunCount)
 }

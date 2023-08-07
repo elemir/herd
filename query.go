@@ -30,23 +30,8 @@ func (q Query[T]) ForEach(f func(t *T)) {
 	})
 }
 
-func (q Query[T]) Iterate(f func(id EntityID, t *T)) {
+func (q Query[T]) Iterate(f func(id EntityID, t *T) bool) {
 	q.iterator.ForEach(func(id EntityID, ptr unsafe.Pointer) bool {
-		f(id, (*T)(ptr))
-
-		return true
+		return f(id, (*T)(ptr))
 	})
-}
-
-func (q Query[T]) First() (T, bool) {
-	var result T
-	var ok bool
-
-	q.iterator.ForEach(func(_ EntityID, ptr unsafe.Pointer) bool {
-		result, ok = *((*T)(ptr)), true
-
-		return false
-	})
-
-	return result, ok
 }

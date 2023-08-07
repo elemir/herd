@@ -5,6 +5,8 @@ github.com/ebitengine/purego v0.4.0 h1:RQVuMIxQPQ5iCGEJvjQ17YOK+1tMKjVau2FUMvXH4
 github.com/ebitengine/purego v0.4.0/go.mod h1:ah1In8AOtksoNK6yk5z1HTJeUkC1Ez4Wk2idgGslMwQ=
 github.com/elemir/herd v0.0.0-20230804175845-1ec187c8a896 h1:mypnmheMt5DlSwo+XZ1cLbS9RiNN3ASemQWWGvBIKiA=
 github.com/elemir/herd v0.0.0-20230804175845-1ec187c8a896/go.mod h1:IyuKiDVO3X/xuJIUelsm/Ckks7WYgTRxuoBfzDJQY30=
+github.com/elemir/herd v0.0.0-20230807150139-8b11a9171fd2 h1:WLq0mx/tSpzZjBEmZDsxExVXk7fSpcK8r9LrQ1zNLyw=
+github.com/elemir/herd v0.0.0-20230807150139-8b11a9171fd2/go.mod h1:IyuKiDVO3X/xuJIUelsm/Ckks7WYgTRxuoBfzDJQY30=
 github.com/ghodss/yaml v1.0.0 h1:wQHKEahhL6wmXdzwWG11gIVCkOv05bNOh+Rxn0yngAk=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b h1:GgabKamyOYguHqHjSkDACcgoPIz3w0Dis/zJ1wyHHHU=
